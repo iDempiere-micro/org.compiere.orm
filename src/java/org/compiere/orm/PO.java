@@ -591,4 +591,78 @@ public abstract class PO extends org.idempiere.orm.PO {
         }	//	same class
     }	//	copy
 
+    /**
+     * 	Set UpdatedBy
+     * 	@param AD_User_ID user
+     */
+    protected void setUpdatedBy (int AD_User_ID)
+    {
+        set_ValueNoCheck ("UpdatedBy", new Integer(AD_User_ID));
+    }	//	setAD_User_ID
+
+    /**
+     * Set value of Column
+     * @param columnName
+     * @param value
+     */
+    public final void set_ValueOfColumn(String columnName, Object value)
+    {
+        set_ValueOfColumnReturningBoolean(columnName, value);
+    }
+
+    /**
+     * Set value of Column returning boolean
+     * @param columnName
+     * @param value
+     *  @returns boolean indicating success or failure
+     */
+    public final boolean set_ValueOfColumnReturningBoolean(String columnName, Object value)
+    {
+        int AD_Column_ID = p_info.getAD_Column_ID(columnName);
+        if (AD_Column_ID > 0)
+            return set_ValueOfColumnReturningBoolean(AD_Column_ID, value);
+        else
+            return false;
+    }
+
+    /**
+     *  Set Value of Column
+     *  @param AD_Column_ID column
+     *  @param value value
+     */
+    public final void set_ValueOfColumn (int AD_Column_ID, Object value)
+    {
+        set_ValueOfColumnReturningBoolean (AD_Column_ID, value);
+    }   //  setValueOfColumn
+
+
+    /**
+     *  Set Value of Column
+     *  @param AD_Column_ID column
+     *  @param value value
+     *  @returns boolean indicating success or failure
+     */
+    public final boolean set_ValueOfColumnReturningBoolean (int AD_Column_ID, Object value)
+    {
+        int index = p_info.getColumnIndex(AD_Column_ID);
+        if (index < 0)
+            throw new AdempiereUserError("Not found - AD_Column_ID=" + AD_Column_ID);
+        String ColumnName = p_info.getColumnName(index);
+        if (ColumnName.equals("IsApproved"))
+            return set_ValueNoCheck(ColumnName, value);
+        else
+            return set_Value (index, value);
+    }   //  setValueOfColumn
+
+    /**
+     *  Set Value if updateable and correct class.
+     *  (and to NULL if not mandatory)
+     *  @param index index
+     *  @param value value
+     *  @return true if value set
+     */
+    protected boolean set_Value (int index, Object value)
+    {
+        return set_Value(index, value, true);
+    }
 }
