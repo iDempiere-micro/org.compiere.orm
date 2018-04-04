@@ -163,8 +163,6 @@ public class DefaultModelFactory implements IModelFactory {
 		//	Remove underlines
 		className = Util.replace(className, "_", "");
 
-		System.out.println( "CLASSNAME:" + className );
-
 		//	Search packages
 		for (int i = 0; i < s_packages.length; i++)
 		{
@@ -173,7 +171,6 @@ public class DefaultModelFactory implements IModelFactory {
 			if (clazz != null)
 			{
 				s_classCache.put(tableName, clazz);
-				System.out.println( "clazz1:" + clazz );				
 				return clazz;
 			}
 		}
@@ -184,7 +181,6 @@ public class DefaultModelFactory implements IModelFactory {
 		if (clazz != null)
 		{
 			s_classCache.put(tableName, clazz);
-			System.out.println( "clazz2:" + clazz );				
 			return clazz;
 		}
 
@@ -194,7 +190,6 @@ public class DefaultModelFactory implements IModelFactory {
 		if (clazz != null)
 		{
 			s_classCache.put(tableName, clazz);
-			System.out.println( "clazz3:" + clazz );				
 			return clazz;
 		}
 
@@ -203,7 +198,6 @@ public class DefaultModelFactory implements IModelFactory {
 		if (clazz != null)
 		{
 			s_classCache.put(tableName, clazz);
-			System.out.println( "clazz4:" + clazz );				
 			return clazz;
 		}
 
@@ -212,11 +206,17 @@ public class DefaultModelFactory implements IModelFactory {
 		if (clazz != null)
 		{
 			s_classCache.put(tableName, clazz);
-			System.out.println( "clazz5:" + clazz );				
 			return clazz;
 		}
 
-		//Object.class to indicate no PO class for tableName
+		//	Default
+		clazz = getPOclass("org.compiere.orm.X_" + tableName, tableName);
+		if (clazz != null)
+		{
+			s_classCache.put(tableName, clazz);
+			return clazz;
+		}
+				//Object.class to indicate no PO class for tableName
 		s_classCache.put(tableName, Object.class);
 		return null;
 	}
@@ -229,7 +229,6 @@ public class DefaultModelFactory implements IModelFactory {
 	 */
 	private Class<?> getPOclass (String className, String tableName)
 	{
-		System.out.println("Called for: " + className + "," + tableName);
 		try
 		{
 			Class<?> clazz = Class.forName(className);
@@ -240,26 +239,21 @@ public class DefaultModelFactory implements IModelFactory {
 				if (!tableName.equals(classTableName))
 				{
 					if (s_log.isLoggable(Level.FINEST)) s_log.finest("Invalid class for table: " + className+" (tableName="+tableName+", classTableName="+classTableName+")");
-					System.out.println("Invalid class for table: " + className+" (tableName="+tableName+", classTableName="+classTableName+")");
 					return null;
 				}
 			}
 			//	Make sure that it is a PO class
 			if (org.idempiere.icommon.model.IPO.class.isAssignableFrom(clazz)){
-				System.out.println("Use: " + className );
 				if (s_log.isLoggable(Level.FINE)) {
 					s_log.fine("Use: " + className);
 				}
 				return clazz;
 			} else {
-				System.out.println("NOT a PO Class: " + className );
 			}
 		}
 		catch (Exception e)
 		{
-			System.out.println("FAILED: " + e );
 		}
-		System.out.println("Not found: " + className);
 		if (s_log.isLoggable(Level.FINEST)) {
 			s_log.finest("Not found: " + className);
 		}
@@ -295,7 +289,6 @@ public class DefaultModelFactory implements IModelFactory {
 		}
 		catch (Exception e)
 		{
-			System.out.println( "EX1:" + e );
 			e.printStackTrace();
 
 			if (e.getCause() != null)
@@ -338,7 +331,6 @@ public class DefaultModelFactory implements IModelFactory {
 		}
 		catch (Exception e)
 		{
-			System.out.println( "EX2:" + e );
 			e.printStackTrace();
 
 			s_log.log(Level.SEVERE, "(rs) - Table=" + tableName + ",Class=" + clazz, e);

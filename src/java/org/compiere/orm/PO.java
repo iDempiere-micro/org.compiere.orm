@@ -211,13 +211,13 @@ public abstract class PO extends org.idempiere.orm.PO {
         String selMinSeqNo = "SELECT COALESCE(MIN(tn.SeqNo),-1) FROM AD_TreeNode tn JOIN " + sourceTableName + " n ON (tn.Node_ID=n." + sourceTableName + "_ID) WHERE tn.Parent_ID=? AND tn.AD_Tree_ID=? AND n.Value>?";
         String selMaxSeqNo = "SELECT COALESCE(MAX(tn.SeqNo)+1,999) FROM AD_TreeNode tn JOIN " + sourceTableName + " n ON (tn.Node_ID=n." + sourceTableName + "_ID) WHERE tn.Parent_ID=? AND tn.AD_Tree_ID=? AND n.Value<?";
 
-        List<MTree_Base> trees = new Query(getCtx(), MTree_Base.Table_Name, whereTree, get_TrxName())
+        List<X_AD_Tree> trees = new Query(getCtx(), MTree_Base.Table_Name, whereTree, get_TrxName())
                 .setClient_ID()
                 .setOnlyActiveRecords(true)
                 .setParameters(parameters)
                 .list();
 
-        for (MTree_Base tree : trees) {
+        for (X_AD_Tree tree : trees) {
             if (tree.isTreeDrivenByValue()) {
                 int newParentID = -1;
                 if (I_C_ElementValue.Table_Name.equals(sourceTableName)) {
