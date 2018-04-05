@@ -14,6 +14,7 @@ import java.sql.SQLException;
 import java.sql.Savepoint;
 import java.util.List;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.logging.Level;
 
 public abstract class PO extends org.idempiere.orm.PO {
@@ -105,6 +106,74 @@ public abstract class PO extends org.idempiere.orm.PO {
             throw new AdempiereException(msg);
         }
     }
+
+    @Override
+    protected boolean saveNew()
+    {
+        //  Set ID for single key - Multi-Key values need explicitly be set previously
+        if (m_IDs.length == 1 && p_info.hasKeyColumn()
+                && m_KeyColumns[0].endsWith("_ID"))	//	AD_Language, EntityType
+        {
+            int no = saveNew_getID();
+            if (no <= 0)
+                no = MSequence.getNextID(getAD_Client_ID(), p_info.getTableName(), m_trxName);
+            // the primary key is not overwrite with the local sequence
+            if (isReplication())
+            {
+                if (get_ID() > 0)
+                {
+                    no = get_ID();
+                }
+            }
+            if (no <= 0)
+            {
+                log.severe("No NextID (" + no + ")");
+                return saveFinish (true, false);
+            }
+            m_IDs[0] = new Integer(no);
+            set_ValueNoCheck(m_KeyColumns[0], m_IDs[0]);
+        }
+        //uuid secondary key
+        int uuidIndex = p_info.getColumnIndex(getUUIDColumnName());
+        if (uuidIndex >= 0)
+        {
+            String value = (String)get_Value(uuidIndex);
+            if (p_info.getColumn(uuidIndex).FieldLength == 36 && (value == null || value.length() == 0))
+            {
+                UUID uuid = UUID.randomUUID();
+                set_ValueNoCheck(p_info.getColumnName(uuidIndex), uuid.toString());
+            }
+        }
+        if (m_trxName == null) {
+            if (log.isLoggable(Level.FINE)) log.fine(p_info.getTableName() + " - " + get_WhereClause(true));
+        } else {
+            if (log.isLoggable(Level.FINE)) log.fine("[" + m_trxName + "] - " + p_info.getTableName() + " - " + get_WhereClause(true));
+        }
+
+        //	Set new DocumentNo
+        String columnName = "DocumentNo";
+        int index = p_info.getColumnIndex(columnName);
+        if (index != -1)
+        {
+            String value = (String)get_Value(index);
+            if (value != null && value.startsWith("<") && value.endsWith(">"))
+                value = null;
+            if (value == null || value.length() == 0)
+            {
+                int dt = p_info.getColumnIndex("C_DocTypeTarget_ID");
+                if (dt == -1)
+                    dt = p_info.getColumnIndex("C_DocType_ID");
+                if (dt != -1)		//	get based on Doc Type (might return null)
+                    value = MSequence.getDocumentNo(get_ValueAsInt(dt), m_trxName, false, this);
+                if (value == null)	//	not overwritten by DocType and not manually entered
+                    value = MSequence.getDocumentNo(getAD_Client_ID(), p_info.getTableName(), m_trxName, this);
+                set_ValueNoCheck(columnName, value);
+            }
+        }
+
+        boolean ok = doInsert(isLogSQLScript());
+        return saveFinish (true, ok);
+    }   //  saveNew
 
     /**
      * 	Insert id data into Tree
