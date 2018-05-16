@@ -4,14 +4,15 @@ import org.compiere.model.I_C_ElementValue;
 import org.compiere.util.Msg;
 import org.idempiere.common.exceptions.AdempiereException;
 import org.idempiere.common.util.*;
+import org.idempiere.icommon.model.IPO;
 import org.idempiere.orm.EventManager;
 import org.idempiere.orm.IEventTopics;
 import org.idempiere.orm.Null;
 import org.osgi.service.event.Event;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Savepoint;
+import java.math.BigDecimal;
+import java.sql.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
@@ -83,7 +84,7 @@ public abstract class PO extends org.idempiere.orm.PO {
      * 	Overwrite Client Org if different
      *	@param po persistent object
      */
-    protected void setClientOrg (org.idempiere.orm.PO po)
+    protected void setClientOrg (IPO po)
     {
         setClientOrg(po.getAD_Client_ID(), po.getAD_Org_ID());
     }	//	setClientOrg
@@ -606,6 +607,18 @@ public abstract class PO extends org.idempiere.orm.PO {
     }	//	delete
 
     /**
+     * 	Delete Current Record
+     * 	@param force delete also processed records
+     *	@param trxName transaction
+     *	@return true if deleted
+     */
+    public boolean delete (boolean force, String trxName)
+    {
+        set_TrxName(trxName);
+        return delete (force);
+    }	//	delete
+
+    /**
      * Update Value or create new record.
      * @param trxName transaction
      * @throws AdempiereException
@@ -734,4 +747,302 @@ public abstract class PO extends org.idempiere.orm.PO {
     {
         return set_Value(index, value, true);
     }
+
+    @Override
+    protected boolean set_Value (String ColumnName, Object value) {
+        return super.set_Value(ColumnName, value);
+    }
+
+
+    protected void updateUUID(MColumn column, String trxName) {
+        MTable table = (MTable) column.getAD_Table();
+        if (table.getTableName().startsWith("T_")) {
+            // don't update UUID for temporary tables
+            return;
+        }
+        int AD_Column_ID = 0;
+        StringBuilder sql = new StringBuilder("SELECT ");
+        String keyColumn = null;
+        String[] compositeKeys = table.getKeyColumns();
+        if (compositeKeys == null || compositeKeys.length == 1) {
+            keyColumn = compositeKeys[0];
+            AD_Column_ID = table.getColumn(keyColumn).getAD_Column_ID();
+            compositeKeys = null;
+        }
+        if ((compositeKeys == null || compositeKeys.length == 0) && keyColumn == null) {
+            // TODO: Update using rowid for oracle or ctid for postgresql
+            log.warning("Cannot update orphan table " + table.getTableName() + " (not ID neither parents)");
+            return;
+        }
+        if (compositeKeys == null) {
+            sql.append(keyColumn);
+        } else {
+            for(String s : compositeKeys) {
+                sql.append(s).append(",");
+            }
+            sql.deleteCharAt(sql.length()-1);
+        }
+        sql.append(" FROM ").append(table.getTableName());
+        sql.append(" WHERE ").append(column.getColumnName()).append(" IS NULL ");
+        StringBuilder updateSQL = new StringBuilder("UPDATE ");
+        updateSQL.append(table.getTableName());
+        updateSQL.append(" SET ");
+        updateSQL.append(column.getColumnName());
+        updateSQL.append("=? WHERE ");
+        if (AD_Column_ID > 0) {
+            updateSQL.append(keyColumn).append("=?");
+        } else {
+            for(String s : compositeKeys) {
+                updateSQL.append(s).append("=? AND ");
+            }
+            int length = updateSQL.length();
+            updateSQL.delete(length-5, length); // delete last AND
+        }
+
+        boolean localTrx = false;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        Trx trx = trxName != null ? Trx.get(trxName, false) : null;
+        if (trx == null) {
+            trx = Trx.get(Trx.createTrxName(), true);
+            trx.setDisplayName(PO.class.getName()+"_updateUUID");
+            localTrx = true;
+        }
+        try {
+            if (localTrx)
+                trx.start();
+            stmt = DB.prepareStatement(sql.toString(), trx.getTrxName());
+            stmt.setFetchSize(100);
+            rs = stmt.executeQuery();
+            while (rs.next()) {
+                if (AD_Column_ID > 0) {
+                    int recordId = rs.getInt(1);
+                    // this line is to avoid users generating official UUIDs - comment it to do official migration script work
+                    if (recordId > MTable.MAX_OFFICIAL_ID) {
+                        UUID uuid = UUID.randomUUID();
+                        DB.executeUpdateEx(updateSQL.toString(),new Object[]{uuid.toString(), recordId}, trx.getTrxName());
+                    }
+                } else {
+                    UUID uuid = UUID.randomUUID();
+                    List<Object> params = new ArrayList<Object>();
+                    params.add(uuid.toString());
+                    for (String s : compositeKeys) {
+                        params.add(rs.getObject(s));
+                    }
+                    DB.executeUpdateEx(updateSQL.toString(),params.toArray(),trx.getTrxName());
+                }
+            }
+            if (localTrx) {
+                trx.commit(true);
+            }
+        } catch (SQLException e) {
+            if (localTrx) {
+                trx.rollback();
+            }
+            throw new DBException(e);
+        } finally {
+            DB.close(rs, stmt);
+            if (localTrx) {
+                trx.close();
+            }
+        }
+    }
+
+    /**
+     * 	Insert Accounting Records
+     *	@param acctTable accounting sub table
+     *	@param acctBaseTable acct table to get data from
+     *	@param whereClause optional where clause with alias "p" for acctBaseTable
+     *	@return true if records inserted
+     */
+    protected boolean insert_Accounting (String acctTable,
+                                         String acctBaseTable, String whereClause)
+    {
+        if (s_acctColumns == null	//	cannot cache C_BP_*_Acct as there are 3
+            || acctTable.startsWith("C_BP_"))
+        {
+            s_acctColumns = new ArrayList<String>();
+            String sql = "SELECT c.ColumnName "
+                + "FROM AD_Column c INNER JOIN AD_Table t ON (c.AD_Table_ID=t.AD_Table_ID) "
+                + "WHERE t.TableName=? AND c.IsActive='Y' AND c.AD_Reference_ID=25 ORDER BY c.ColumnName";
+            PreparedStatement pstmt = null;
+            ResultSet rs = null;
+            try
+            {
+                pstmt = DB.prepareStatement (sql, null);
+                pstmt.setString (1, acctTable);
+                rs = pstmt.executeQuery ();
+                while (rs.next ())
+                    s_acctColumns.add (rs.getString(1));
+            }
+            catch (Exception e)
+            {
+                log.log(Level.SEVERE, acctTable, e);
+            }
+            finally {
+                DB.close(rs, pstmt);
+                rs = null; pstmt = null;
+            }
+            if (s_acctColumns.size() == 0)
+            {
+                log.severe ("No Columns for " + acctTable);
+                return false;
+            }
+        }
+
+        //	Create SQL Statement - INSERT
+        StringBuilder sb = new StringBuilder("INSERT INTO ")
+            .append(acctTable)
+            .append(" (").append(get_TableName())
+            .append("_ID, C_AcctSchema_ID, AD_Client_ID,AD_Org_ID,IsActive, Created,CreatedBy,Updated,UpdatedBy ");
+        for (int i = 0; i < s_acctColumns.size(); i++)
+            sb.append(",").append(s_acctColumns.get(i));
+
+        //check whether db have working generate_uuid function.
+        boolean uuidFunction = DB.isGenerateUUIDSupported();
+
+        //uuid column
+        int uuidColumnId = DB.getSQLValue(get_TrxName(), "SELECT col.AD_Column_ID FROM AD_Column col INNER JOIN AD_Table tbl ON col.AD_Table_ID = tbl.AD_Table_ID WHERE tbl.TableName=? AND col.ColumnName=?",
+            acctTable, org.idempiere.orm.PO.getUUIDColumnName(acctTable));
+        if (uuidColumnId > 0 && uuidFunction)
+            sb.append(",").append(org.idempiere.orm.PO.getUUIDColumnName(acctTable));
+        //	..	SELECT
+        sb.append(") SELECT ").append(get_ID())
+            .append(", p.C_AcctSchema_ID, p.AD_Client_ID,0,'Y', SysDate,")
+            .append(getUpdatedBy()).append(",SysDate,").append(getUpdatedBy());
+        for (int i = 0; i < s_acctColumns.size(); i++)
+            sb.append(",p.").append(s_acctColumns.get(i));
+        //uuid column
+        if (uuidColumnId > 0 && uuidFunction)
+            sb.append(",generate_uuid()");
+        //	.. 	FROM
+        sb.append(" FROM ").append(acctBaseTable)
+            .append(" p WHERE p.AD_Client_ID=").append(getAD_Client_ID());
+        if (whereClause != null && whereClause.length() > 0)
+            sb.append (" AND ").append(whereClause);
+        sb.append(" AND NOT EXISTS (SELECT * FROM ").append(acctTable)
+            .append(" e WHERE e.C_AcctSchema_ID=p.C_AcctSchema_ID AND e.")
+            .append(get_TableName()).append("_ID=").append(get_ID()).append(")");
+        //
+        int no = DB.executeUpdate(sb.toString(), get_TrxName());
+        if (no > 0) {
+            if (log.isLoggable(Level.FINE)) log.fine("#" + no);
+        } else {
+            log.warning("#" + no
+                + " - Table=" + acctTable + " from " + acctBaseTable);
+        }
+
+        //fall back to the slow java client update code
+        if (uuidColumnId > 0 && !uuidFunction) {
+            MColumn column = new MColumn(getCtx(), uuidColumnId, get_TrxName());
+            updateUUID(column, get_TrxName());
+        }
+        return no > 0;
+    }	//	insert_Accounting
+
+    /** Model Info              */
+    protected org.idempiere.orm.POInfo getP_info() {
+        return super.p_info;
+    }
+
+    /**
+     * Delete Current Record
+     * @param force delete also processed records
+     * @throws AdempiereException
+     * @see #delete(boolean)
+     */
+    public void deleteEx(boolean force) throws AdempiereException
+    {
+        if (!delete(force)) {
+            String msg = null;
+            ValueNamePair err = CLogger.retrieveError();
+            if (err != null)
+                msg = err.getName();
+            if (msg == null || msg.length() == 0)
+                msg = "DeleteError";
+            throw new AdempiereException(msg);
+        }
+    }
+
+    /**
+     * Delete Current Record
+     * @param force delete also processed records
+     * @param trxName transaction
+     * @throws AdempiereException
+     * @see {@link #deleteEx(boolean)}
+     */
+    public void deleteEx(boolean force, String trxName) throws AdempiereException
+    {
+        set_TrxName(trxName);
+        deleteEx(force);
+    }
+
+    /**
+     * 	Copy old values of From to new values of To.
+     *  Does not copy Keys
+     * 	@param from old, existing & unchanged PO
+     *  @param to new, not saved PO
+     * 	@param AD_Client_ID client
+     * 	@param AD_Org_ID org
+     */
+    protected static void copyValues (PO from, PO to, int AD_Client_ID, int AD_Org_ID)
+    {
+        copyValues (from, to);
+        to.setAD_Client_ID(AD_Client_ID);
+        to.setAD_Org_ID(AD_Org_ID);
+    }	//	copyValues
+
+    public static <T> T as(Class<T> clazz, Object o){
+        if(clazz.isInstance(o)){
+            return clazz.cast(o);
+        }
+        return null;
+    }
+
+
+    /**************************************************************************
+     * 	Get Attachments.
+     * 	An attachment may have multiple entries
+     *	@return Attachment or null
+     */
+    public MAttachment getAttachment ()
+    {
+        return getAttachment(false);
+    }	//	getAttachment
+
+    /**
+     * 	Get Attachments
+     * 	@param requery requery
+     *	@return Attachment or null
+     */
+    public MAttachment getAttachment (boolean requery)
+    {
+        if (m_attachment == null || requery)
+            m_attachment = MAttachment.get (getCtx(), p_info.getAD_Table_ID(), get_ID());
+        return m_attachment;
+    }	//	getAttachment
+
+    /* FR 2962094 - Finish implementation of weighted average costing
+       Fill the column ProcessedOn (if it exists) with a bigdecimal representation of current timestamp (with nanoseconds)
+    */
+    public void setProcessedOn(String ColumnName, Object value, Object oldValue) {
+        if ("Processed".equals(ColumnName)
+            && value instanceof Boolean
+            && ((Boolean)value).booleanValue() == true
+            && (oldValue == null
+            || (oldValue instanceof Boolean
+            && ((Boolean)oldValue).booleanValue() == false))) {
+            if (get_ColumnIndex("ProcessedOn") > 0) {
+                // fill processed on column
+                //get current time from db
+                Timestamp ts = DB.getSQLValueTS(null, "SELECT CURRENT_TIMESTAMP FROM DUAL");
+                long mili = ts.getTime();
+                int nano = ts.getNanos();
+                double doublets = Double.parseDouble(Long.toString(mili) + "." + Integer.toString(nano));
+                BigDecimal bdtimestamp = BigDecimal.valueOf(doublets);
+                set_Value("ProcessedOn", bdtimestamp);
+            }
+        }
+    }
+
 }
