@@ -48,7 +48,10 @@ public class DefaultModelFactory implements IModelFactory {
 		"org.adempiere.model",
 		"org.compiere.impl",
 		"org.compiere.orm",
-		"org.compiere.crm"
+    "org.compiere.crm",
+    "org.compiere.tax",
+    "org.compiere.product",
+    "org.compiere.order"
 	};
 
 	/**	Special Classes				*/
