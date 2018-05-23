@@ -21,7 +21,8 @@ import org.idempiere.common.db.CConnection;
 import org.idempiere.common.exceptions.AdempiereException;
 import org.idempiere.common.exceptions.DBException;
 import org.idempiere.common.util.*;
- 
+import org.idempiere.icommon.model.IPO;
+
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -377,7 +378,7 @@ public class MSequence extends X_AD_Sequence
 	 * @param trxName
 	 * @return String
 	 */
-	public static String parseVariable(String expression, PO po, String trxName, boolean keepUnparseable) {
+	public static String parseVariable(String expression, IPO po, String trxName, boolean keepUnparseable) {
 		if (expression == null || expression.length() == 0)
 			return "";
 

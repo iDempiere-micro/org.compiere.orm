@@ -1,10 +1,13 @@
 package org.compiere.orm;
 
+import org.compiere.model.I_AD_User;
 import org.idempiere.common.util.CCache;
 import org.idempiere.common.util.Env;
 import org.idempiere.common.util.Language;
 
+import java.io.File;
 import java.sql.ResultSet;
+import java.util.List;
 import java.util.Properties;
 
 public class MClient extends X_AD_Client {
@@ -109,6 +112,7 @@ public class MClient extends X_AD_Client {
      *	Get Client Info
      *	@return Client Info
      */
+
     public MClientInfo getInfo()
     {
         if (m_info == null)
@@ -118,5 +122,31 @@ public class MClient extends X_AD_Client {
 
     /**	Client Info					*/
     protected MClientInfo 		m_info = null;
+
+    public boolean sendEMail (String to,
+                              String subject, String message, File attachment) { return true; }
+
+    public boolean sendEMail (int AD_User_ID,
+                              String subject, String message, File attachment) {
+        return true;
+    }
+
+    public boolean sendEMail (String to,
+                              String subject, String message, File attachment, boolean html) {
+        return true;
+    }
+
+    public boolean sendEMail (I_AD_User from, I_AD_User to,
+                              String subject, String message, File attachment, boolean isHtml) {
+        return true;
+    }
+
+    public boolean sendEMail (I_AD_User from, I_AD_User to,
+                              String subject, String message, File attachment) {
+        return true;
+    }
+
+    public void sendEMailAttachments(I_AD_User from, I_AD_User user, String schedulerName, String mailContent, List<File> fileList) {
+    }
 
 }
