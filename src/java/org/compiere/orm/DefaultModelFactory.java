@@ -287,8 +287,13 @@ public class DefaultModelFactory implements IModelFactory {
 				s_log.warning("No transaction Constructor for " + clazz + " (" + msg + ")");
 			}
 
-			PO po = constructor!=null ? (PO)constructor.newInstance(new Object[] {Env.getCtx(), new Integer(Record_ID), trxName}) : null;
-			return po;
+			try {
+				PO po = constructor != null ? (PO) constructor.newInstance(new Object[]{Env.getCtx(), new Integer(Record_ID), trxName}) : null;
+				return po;
+			} catch ( Exception ex ) {
+				System.out.println( "***** PO FAILED for table '" + tableName + "', Record_ID:" + Record_ID + " and clazz '" + clazz.getCanonicalName() + "'"  );
+				throw ex;
+			}
 		}
 		catch (Exception e)
 		{

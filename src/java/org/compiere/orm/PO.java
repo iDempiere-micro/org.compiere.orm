@@ -1,5 +1,6 @@
 package org.compiere.orm;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.compiere.model.I_C_ElementValue;
 import org.compiere.util.Msg;
 import org.idempiere.common.exceptions.AdempiereException;
@@ -1005,6 +1006,7 @@ public abstract class PO extends org.idempiere.orm.PO {
      * 	An attachment may have multiple entries
      *	@return Attachment or null
      */
+    @JsonIgnore
     public MAttachment getAttachment ()
     {
         return getAttachment(false);
