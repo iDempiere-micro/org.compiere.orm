@@ -41,17 +41,24 @@ public class DefaultModelFactory implements IModelFactory {
 	/**	Packages for Model Classes	*/
 	private static final String[]	s_packages = new String[] {
 
-		"org.compiere.model", "org.compiere.wf",
+		"org.compiere.model",
 		"org.compiere.impexp",
 		"compiere.model",			//	globalqss allow compatibility with other plugins
 		"adempiere.model",			//	Extensions
 		"org.adempiere.model",
-		"org.compiere.impl",
-		"org.compiere.orm",
-    "org.compiere.crm",
-    "org.compiere.tax",
-    "org.compiere.product",
-    "org.compiere.order"
+
+			"org.compiere.impl",	// order is important this must be BEFORE the bundles
+
+			"org.compiere.bo",
+			"org.compiere.conversionrate",
+			"org.compiere.crm",
+			"org.compiere.order",
+			"org.compiere.orm",
+			"org.compiere.process",
+			"org.compiere.product",
+			"org.compiere.tax",
+			"org.compiere.wf"
+
 	};
 
 	/**	Special Classes				*/
@@ -73,6 +80,8 @@ public class DefaultModelFactory implements IModelFactory {
 	 */
 	@Override
 	public Class<?> getClass(String tableName) {
+		System.out.println( "***** getClass '" + tableName );
+
 //		Not supported
 		if (tableName == null || tableName.endsWith("_Trl"))
 			return null;
@@ -164,13 +173,20 @@ public class DefaultModelFactory implements IModelFactory {
 			*/
 		}
 		//	Remove underlines
-		className = Util.replace(className, "_", "");
+		String classNameWOU = Util.replace(className, "_", "");
 
 		//	Search packages
 		for (int i = 0; i < s_packages.length; i++)
 		{
-			StringBuffer name = new StringBuffer(s_packages[i]).append(".M").append(className);
+			StringBuffer name = new StringBuffer(s_packages[i]).append(".M").append(classNameWOU);
 			Class<?> clazz = getPOclass(name.toString(), tableName);
+			if (clazz != null)
+			{
+				s_classCache.put(tableName, clazz);
+				return clazz;
+			}
+			name = new StringBuffer(s_packages[i]).append(".X_").append(tableName); //X_C_ContactActivity
+			clazz = getPOclass(name.toString(), tableName);
 			if (clazz != null)
 			{
 				s_classCache.put(tableName, clazz);
@@ -178,48 +194,7 @@ public class DefaultModelFactory implements IModelFactory {
 			}
 		}
 
-
-		//	Adempiere Extension
-		Class<?> clazz = getPOclass("adempiere.model.X_" + tableName, tableName);
-		if (clazz != null)
-		{
-			s_classCache.put(tableName, clazz);
-			return clazz;
-		}
-
-		//hengsin - allow compatibility with compiere plugins
-		//Compiere Extension
-		clazz = getPOclass("compiere.model.X_" + tableName, tableName);
-		if (clazz != null)
-		{
-			s_classCache.put(tableName, clazz);
-			return clazz;
-		}
-
-		//	Default
-		clazz = getPOclass("org.compiere.model.X_" + tableName, tableName);
-		if (clazz != null)
-		{
-			s_classCache.put(tableName, clazz);
-			return clazz;
-		}
-
-		//	Default
-		clazz = getPOclass("org.compiere.impl.X_" + tableName, tableName);
-		if (clazz != null)
-		{
-			s_classCache.put(tableName, clazz);
-			return clazz;
-		}
-
-		//	Default
-		clazz = getPOclass("org.compiere.orm.X_" + tableName, tableName);
-		if (clazz != null)
-		{
-			s_classCache.put(tableName, clazz);
-			return clazz;
-		}
-				//Object.class to indicate no PO class for tableName
+		//Object.class to indicate no PO class for tableName
 		s_classCache.put(tableName, Object.class);
 		return null;
 	}
@@ -268,6 +243,7 @@ public class DefaultModelFactory implements IModelFactory {
 		Class<?> clazz = getClass(tableName);
 		if (clazz == null)
 		{
+			System.out.println( "***** PO NO CLAZZ FOR TABLE'" + tableName + "', Record_ID:" + Record_ID  );
 			return null;
 		}
 
@@ -327,6 +303,7 @@ public class DefaultModelFactory implements IModelFactory {
 		Class<?> clazz = getClass(tableName);
 		if (clazz == null)
 		{
+			System.out.println( "***** PO NO CLAZZ FOR TABLE'" + tableName + "' with ResultSet" );
 			return null;
 		}
 

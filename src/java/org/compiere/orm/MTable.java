@@ -398,6 +398,10 @@ public class MTable extends X_AD_Table
 	 */
 	public org.idempiere.orm.PO getPO (int Record_ID, String trxName)
 	{
+		if ( Record_ID == 0 ) {
+			return null;
+		}
+
 		String tableName = getTableName();
 		if (Record_ID != 0 && !isSingleKey())
 		{
