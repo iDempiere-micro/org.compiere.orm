@@ -300,6 +300,12 @@ public class DefaultModelFactory implements IModelFactory {
 
 	@Override
 	public PO getPO(String tableName, ResultSet rs, String trxName) {
+		return getPO(tableName, rs, trxName, null);
+	}
+
+
+	@Override
+	public PO getPO(String tableName, ResultSet rs, String trxName, String columnNamePrefix) {
 		Class<?> clazz = getClass(tableName);
 		if (clazz == null)
 		{
@@ -310,9 +316,15 @@ public class DefaultModelFactory implements IModelFactory {
 		boolean errorLogged = false;
 		try
 		{
-			Constructor<?> constructor = clazz.getDeclaredConstructor(new Class[]{Properties.class, ResultSet.class, String.class});
-			PO po = (PO)constructor.newInstance(new Object[] {Env.getCtx(), rs, trxName});
-			return po;
+			if ( columnNamePrefix==null ) {
+				Constructor<?> constructor = clazz.getDeclaredConstructor(new Class[]{Properties.class, ResultSet.class, String.class});
+				PO po = (PO) constructor.newInstance(new Object[]{Env.getCtx(), rs, trxName});
+				return po;
+			} else {
+				Constructor<?> constructor = clazz.getDeclaredConstructor(new Class[]{Properties.class, ResultSet.class, String.class, String.class});
+				PO po = (PO) constructor.newInstance(new Object[]{Env.getCtx(), rs, trxName, columnNamePrefix});
+				return po;
+			}
 		}
 		catch (Exception e)
 		{

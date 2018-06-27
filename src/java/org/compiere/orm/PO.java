@@ -29,11 +29,14 @@ public abstract class PO extends org.idempiere.orm.PO {
     }
 
     public PO(Properties ctx, ResultSet rs, String trxName) {
-        super(ctx, rs, trxName);
+        super(ctx, rs, trxName, null);
+    }
+    public PO(Properties ctx, ResultSet rs, String trxName, String columnNamePrefix) {
+        super(ctx, rs, trxName, columnNamePrefix);
     }
 
     public PO(Properties ctx, int ID, String trxName, ResultSet rs) {
-        super(ctx, ID, trxName, rs);
+        super(ctx, ID, trxName, rs, null);
     }
 
     /**	Attachment with entries	*/
