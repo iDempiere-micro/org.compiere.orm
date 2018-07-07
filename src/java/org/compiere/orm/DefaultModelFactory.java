@@ -57,7 +57,8 @@ public class DefaultModelFactory implements IModelFactory {
 			"org.compiere.process",
 			"org.compiere.product",
 			"org.compiere.tax",
-			"org.compiere.wf"
+			"org.compiere.wf",
+			"org.compiere.validation"
 
 	};
 

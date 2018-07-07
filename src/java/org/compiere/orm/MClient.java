@@ -1,5 +1,6 @@
 package org.compiere.orm;
 
+import org.compiere.model.I_AD_Client;
 import org.compiere.model.I_AD_User;
 import org.idempiere.common.util.CCache;
 import org.idempiere.common.util.Env;
@@ -107,6 +108,35 @@ public class MClient extends X_AD_Client {
         return client;
     }	//	get
 
+
+    /**
+     * 	Get all clients
+     *	@param ctx context
+     *	@return clients
+     */
+    public static MClient[] getAll (Properties ctx)
+    {
+        return getAll(ctx, "");
+    }	//	getAll
+
+    /**
+     * 	Get all clients
+     *	@param ctx context
+     *	@param order by clause
+     *	@return clients
+     */
+    public static MClient[] getAll (Properties ctx, String orderBy)
+    {
+        List<MClient> list = new Query(ctx, I_AD_Client.Table_Name,null,null)
+                .setOrderBy(orderBy)
+                .list();
+        for(MClient client:list ){
+            s_cache.put (new Integer (client.getAD_Client_ID()), client);
+        }
+        MClient[] retValue = new MClient[list.size ()];
+        list.toArray (retValue);
+        return retValue;
+    }	//	getAll
 
     /**
      *	Get Client Info
